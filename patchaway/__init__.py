@@ -1,6 +1,7 @@
 import ctypes
-from functools import wraps
 import gc
+from functools import wraps
+
 
 inquiry = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.py_object)
 unaryfunc = ctypes.CFUNCTYPE(ctypes.py_object, ctypes.py_object)
@@ -11,17 +12,6 @@ ssizeargfunc = ctypes.CFUNCTYPE(ctypes.py_object, ctypes.py_object, ctypes.c_ssi
 ssizeobjargproc = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.py_object, ctypes.c_ssize_t, ctypes.py_object)
 objobjproc = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.py_object, ctypes.py_object)
 visitproc = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.py_object, ctypes.c_void_p)
-
-
-class IntStruct (ctypes.Structure):
-    # declaration of fields
-    _fields_ = [("ob_refcnt", ctypes.c_long),
-                ("ob_type", ctypes.c_void_p),
-                ("ob_size", ctypes.c_long),
-                ("ob_digit", ctypes.c_long)]
-
-    def value(self):
-        return self.ob_digit
 
 
 class PyObject(ctypes.Structure):
@@ -60,23 +50,38 @@ class PyAsyncMethods(ctypes.Structure):
 class Pybuffer(ctypes.Structure):
     _fields_ = [
         ('buf', ctypes.c_void_p),
-        ('obj', ctypes.c_void_p),
+        ('obj', ctypes.py_object),
         ('len', ctypes.c_ssize_t),
-        ('readonly', ctypes.c_int),
         ('itemsize', ctypes.c_ssize_t),
-        ('format', ctypes.c_char_p),
+        ('readonly', ctypes.c_int),
         ('ndim', ctypes.c_int),
-        ('shape', ctypes.c_ssize_t),  # ssize_t pointer?
-        ('strides', ctypes.c_ssize_t),  # ssize_t pointer?
-        ('suboffsets', ctypes.c_ssize_t),  # ssize_t pointer?
+        ('format', ctypes.c_char_p),
+        ('shape', ctypes.POINTER(ctypes.c_ssize_t)),  # ssize_t pointer?
+        ('strides', ctypes.POINTER(ctypes.c_ssize_t)),  # ssize_t pointer?
+        ('suboffsets', ctypes.POINTER(ctypes.c_ssize_t)),  # ssize_t pointer?
+        ('smalltable', ctypes.c_ssize_t * 2),
         ('internal', ctypes.c_void_p)
     ]
 
 
+Py_buffer_p = ctypes.POINTER(Pybuffer)
+getbufferproc = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.py_object, Py_buffer_p, ctypes.c_int)
+releasebufferproc = ctypes.CFUNCTYPE(None, ctypes.py_object, Py_buffer_p)
+traverseproc = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.py_object, visitproc, ctypes.c_void_p)
+readbufferproc = ctypes.CFUNCTYPE(ctypes.c_ssize_t, ctypes.py_object, ctypes.c_ssize_t, ctypes.POINTER(ctypes.c_void_p))
+writebufferproc = ctypes.CFUNCTYPE(ctypes.c_ssize_t, ctypes.py_object, ctypes.c_ssize_t, ctypes.POINTER(ctypes.c_void_p))
+segcountproc = ctypes.CFUNCTYPE(ctypes.c_ssize_t, ctypes.py_object, ctypes.POINTER(ctypes.c_ssize_t))
+charbufferproc = ctypes.CFUNCTYPE(ctypes.c_ssize_t, ctypes.py_object, ctypes.c_ssize_t, ctypes.POINTER(ctypes.c_void_p))
+
+
 class PyBufferProcs(ctypes.Structure):
     _fields_ = [
-        ('bf_getbuffer', ctypes.CFUNCTYPE(ctypes.c_int, ctypes.py_object, Pybuffer, ctypes.c_int)),
-        ('bf_releasebuffer', ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.py_object, Pybuffer)),
+        ('bf_getreadbuffer', readbufferproc),
+        ('bf_getwritebuffer', writebufferproc),
+        ('bf_getsegcount', segcountproc),
+        ('bf_getcharbuffer', charbufferproc),
+        ('bf_getbuffer', getbufferproc),
+        ('bf_releasebuffer', releasebufferproc),
     ]
 
 
@@ -122,15 +127,11 @@ PyNumberMethods_fields = [
     ('nb_inplace_true_divide', binaryfunc),
 
     ('nb_index', unaryfunc, '__index__'),
-
-    # ('nb_matrix_multiply', binaryfunc, '__matmul__', '__rmatmul__'),
-    # ('nb_inplace_matrix_multiply', binaryfunc),
 ]
 
 PySequenceMethods_fields = [
     ('sq_length', lenfunc, '__len__'),
     ('sq_concat', binaryfunc, '__add__'),
-    # ('sq_concat', binaryfunc),
     ('sq_repeat', ssizeargfunc, '__mul__'),
     ('sq_item', ssizeargfunc, '__getitem__'),
     ('was_sq_slice', ctypes.c_void_p),
@@ -168,7 +169,7 @@ PyTypeObject_fields = [
     ('tp_str', ctypes.CFUNCTYPE(ctypes.py_object, ctypes.py_object), '__str__'),
     ('tp_getattro', ctypes.CFUNCTYPE(ctypes.py_object, ctypes.py_object, ctypes.py_object)),
     ('tp_setattro', ctypes.CFUNCTYPE(ctypes.c_int, ctypes.py_object, ctypes.py_object, ctypes.py_object)),
-    ('tp_as_buffer', ctypes.POINTER(PyBufferProcs)),  # undefined
+    ('tp_as_buffer', ctypes.POINTER(PyBufferProcs)),
     ('tp_flags', ctypes.c_ulong),
     ('tp_doc', ctypes.c_char_p, '__doc__'),
     ('tp_traverse', ctypes.CFUNCTYPE(ctypes.c_int, ctypes.py_object, visitproc, ctypes.c_void_p)),  # undefined

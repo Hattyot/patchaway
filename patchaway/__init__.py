@@ -229,7 +229,7 @@ for field in PyAsyncMethods_fields + PySequenceMethods_fields + PyTypeObject_fie
 
 def dunder_patch(klass, method, value):
     c_method, c_func_t, tp_as_name = dunder_dict[method]
-    c_object = PyTypeObject.from_address(id(int))
+    c_object = PyTypeObject.from_address(id(klass))
 
     if c_func_t == ctypes.c_char_p:
         assert type(value) == str

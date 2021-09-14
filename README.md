@@ -5,10 +5,15 @@ Patch away all your internal python problems with PatchAway! (does not work on n
 Based on forbiddenfruit
 
 ## Usage
+Patch the list __str__ method
 ```py
-from patchaway import dunder_patch
+from patchaway import patch
 
-dunder_patch(list, '__str__', "rekt")
+patch(list, '__str__', "rekt")
+print(str([1, 2, 3]))  # => "rekt"
 
-print(str([1, 2, 3]))  # => rekt
+
+patch(int, 'hello', lambda: *a, **kw: "Hi!")
+number = 2
+print(number.hello())  # => "Hi!"
 ```

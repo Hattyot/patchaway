@@ -1,16 +1,27 @@
 import ctypes
 from functools import wraps
+import gc
 
-
-Inquiry_p = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.py_object)
-UnaryFunc_p = ctypes.CFUNCTYPE(ctypes.py_object, ctypes.py_object)
-BinaryFunc_p = ctypes.CFUNCTYPE(ctypes.py_object, ctypes.py_object, ctypes.py_object)
-TernaryFunc_p = ctypes.CFUNCTYPE(ctypes.py_object, ctypes.py_object, ctypes.py_object, ctypes.py_object)
-LenFunc_p = ctypes.CFUNCTYPE(ctypes.c_ssize_t, ctypes.py_object)
-SSizeArgFunc_p = ctypes.CFUNCTYPE(ctypes.py_object, ctypes.py_object, ctypes.c_ssize_t)
-SSizeObjArgProc_p = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.py_object, ctypes.c_ssize_t, ctypes.py_object)
-ObjObjProc_p = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.py_object, ctypes.py_object)
+inquiry = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.py_object)
+unaryfunc = ctypes.CFUNCTYPE(ctypes.py_object, ctypes.py_object)
+binaryfunc = ctypes.CFUNCTYPE(ctypes.py_object, ctypes.py_object, ctypes.py_object)
+ternaryfunc = ctypes.CFUNCTYPE(ctypes.py_object, ctypes.py_object, ctypes.py_object, ctypes.py_object)
+lenfunc = ctypes.CFUNCTYPE(ctypes.c_ssize_t, ctypes.py_object)
+ssizeargfunc = ctypes.CFUNCTYPE(ctypes.py_object, ctypes.py_object, ctypes.c_ssize_t)
+ssizeobjargproc = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.py_object, ctypes.c_ssize_t, ctypes.py_object)
+objobjproc = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.py_object, ctypes.py_object)
 visitproc = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.py_object, ctypes.c_void_p)
+
+
+class IntStruct (ctypes.Structure):
+    # declaration of fields
+    _fields_ = [("ob_refcnt", ctypes.c_long),
+                ("ob_type", ctypes.c_void_p),
+                ("ob_size", ctypes.c_long),
+                ("ob_digit", ctypes.c_long)]
+
+    def value(self):
+        return self.ob_digit
 
 
 class PyObject(ctypes.Structure):
@@ -74,66 +85,66 @@ class PyTypeObject(ctypes.Structure):
 
 
 PyNumberMethods_fields = [
-    ('nb_add', ctypes.CFUNCTYPE(ctypes.py_object, ctypes.py_object, ctypes.py_object), '__add__', '__radd__'),
-    ('nb_subtract', BinaryFunc_p, '__sub__', '__rsub__'),
-    ('nb_multiply', BinaryFunc_p, '__mul__', '__rmul__'),
-    ('nb_remainder', BinaryFunc_p, '__mod__', '__rmod__'),
-    ('nb_divmod', BinaryFunc_p, '__divmod__', '__rdivmod__'),
-    ('nb_power', TernaryFunc_p, '__pow__', '__rpow__'),
-    ('nb_negative', UnaryFunc_p, '__neg__'),
-    ('nb_positive', UnaryFunc_p, '__pos__'),
-    ('nb_absolute', UnaryFunc_p, '__abs__'),
-    ('nb_bool', Inquiry_p, '__bool__'),
-    ('nb_invert', UnaryFunc_p, '__invert__'),
-    ('nb_lshift', BinaryFunc_p, '__lshift__', '__rlshift__'),
-    ('nb_rshift', BinaryFunc_p, '__rshift__', '__rrshift__'),
-    ('nb_and', BinaryFunc_p, '__and__', '__rand__'),
-    ('nb_xor', BinaryFunc_p, '__xor__', '__rxor__'),
-    ('nb_or', BinaryFunc_p, '__or__', '__ror__'),
-    ('nb_int', UnaryFunc_p, '__int__'),
+    ('nb_add', binaryfunc, '__add__', '__radd__'),
+    ('nb_subtract', binaryfunc, '__sub__', '__rsub__'),
+    ('nb_multiply', binaryfunc, '__mul__', '__rmul__'),
+    ('nb_remainder', binaryfunc, '__mod__', '__rmod__'),
+    ('nb_divmod', binaryfunc, '__divmod__', '__rdivmod__'),
+    ('nb_power', ternaryfunc, '__pow__', '__rpow__'),
+    ('nb_negative', unaryfunc, '__neg__'),
+    ('nb_positive', unaryfunc, '__pos__'),
+    ('nb_absolute', unaryfunc, '__abs__'),
+    ('nb_bool', inquiry, '__bool__'),
+    ('nb_invert', unaryfunc, '__invert__'),
+    ('nb_lshift', binaryfunc, '__lshift__', '__rlshift__'),
+    ('nb_rshift', binaryfunc, '__rshift__', '__rrshift__'),
+    ('nb_and', binaryfunc, '__and__', '__rand__'),
+    ('nb_xor', binaryfunc, '__xor__', '__rxor__'),
+    ('nb_or', binaryfunc, '__or__', '__ror__'),
+    ('nb_int', unaryfunc, '__int__'),
     ('nb_reserved', ctypes.c_void_p),
-    ('nb_float', UnaryFunc_p, '__float__'),
+    ('nb_float', unaryfunc, '__float__'),
 
-    ('nb_inplace_add', BinaryFunc_p, '__iadd__'),
-    ('nb_inplace_subtract', BinaryFunc_p),
-    ('nb_inplace_multiply', BinaryFunc_p),
-    ('nb_inplace_remainder', BinaryFunc_p),
-    ('nb_inplace_power', TernaryFunc_p),
-    ('nb_inplace_lshift', BinaryFunc_p),
-    ('nb_inplace_rshift', BinaryFunc_p),
-    ('nb_inplace_and', BinaryFunc_p),
-    ('nb_inplace_xor', BinaryFunc_p),
-    ('nb_inplace_or', BinaryFunc_p),
+    ('nb_inplace_add', binaryfunc, '__iadd__'),
+    ('nb_inplace_subtract', binaryfunc),
+    ('nb_inplace_multiply', binaryfunc),
+    ('nb_inplace_remainder', binaryfunc),
+    ('nb_inplace_power', ternaryfunc),
+    ('nb_inplace_lshift', binaryfunc),
+    ('nb_inplace_rshift', binaryfunc),
+    ('nb_inplace_and', binaryfunc),
+    ('nb_inplace_xor', binaryfunc),
+    ('nb_inplace_or', binaryfunc),
 
-    ('nb_floor_divide', BinaryFunc_p, '__floordiv__'),
-    ('nb_true_divide', BinaryFunc_p, '__truediv__'),
-    ('nb_inplace_floor_divide', BinaryFunc_p),
-    ('nb_inplace_true_divide', BinaryFunc_p),
+    ('nb_floor_divide', binaryfunc, '__floordiv__'),
+    ('nb_true_divide', binaryfunc, '__truediv__'),
+    ('nb_inplace_floor_divide', binaryfunc),
+    ('nb_inplace_true_divide', binaryfunc),
 
-    ('nb_index', UnaryFunc_p, '__index__'),
+    ('nb_index', unaryfunc, '__index__'),
 
-    # ('nb_matrix_multiply', BinaryFunc_p, '__matmul__', '__rmatmul__'),
-    # ('nb_inplace_matrix_multiply', BinaryFunc_p),
+    # ('nb_matrix_multiply', binaryfunc, '__matmul__', '__rmatmul__'),
+    # ('nb_inplace_matrix_multiply', binaryfunc),
 ]
 
 PySequenceMethods_fields = [
-    ('sq_length', LenFunc_p, '__len__'),
-    ('sq_concat', BinaryFunc_p, '__add__'),
-    # ('sq_concat', BinaryFunc_p),
-    ('sq_repeat', SSizeArgFunc_p, '__mul__'),
-    ('sq_item', SSizeArgFunc_p, '__getitem__'),
+    ('sq_length', lenfunc, '__len__'),
+    ('sq_concat', binaryfunc, '__add__'),
+    # ('sq_concat', binaryfunc),
+    ('sq_repeat', ssizeargfunc, '__mul__'),
+    ('sq_item', ssizeargfunc, '__getitem__'),
     ('was_sq_slice', ctypes.c_void_p),
-    ('sq_ass_item', SSizeObjArgProc_p, '__setitem__', '__delitem__'),
+    ('sq_ass_item', ssizeobjargproc, '__setitem__', '__delitem__'),
     ('was_sq_ass_slice', ctypes.c_void_p),
-    ('sq_contains', ObjObjProc_p, '__contains__'),
-    ('sq_inplace_concat', BinaryFunc_p, '__iadd__'),
-    ('sq_inplace_repeat', SSizeArgFunc_p, '__imul__'),
+    ('sq_contains', objobjproc, '__contains__'),
+    ('sq_inplace_concat', binaryfunc, '__iadd__'),
+    ('sq_inplace_repeat', ssizeargfunc, '__imul__'),
 ]
 
 PyAsyncMethods_fields = [
-    ('am_await', UnaryFunc_p, '__await__'),
-    ('am_aiter', UnaryFunc_p, '__aiter__'),
-    ('am_anext', UnaryFunc_p, '__anext__')
+    ('am_await', unaryfunc, '__await__'),
+    ('am_aiter', unaryfunc, '__aiter__'),
+    ('am_anext', unaryfunc, '__anext__')
 ]
 
 PyTypeObject_fields = [
@@ -216,17 +227,9 @@ for field in PyAsyncMethods_fields + PySequenceMethods_fields + PyTypeObject_fie
         dunder_dict[dunder] = field[:2] + (tp_as_dict.get(field[0][:2]), )
 
 
-class IntStruct (ctypes.Structure):
-    # declaration of fields
-    _fields_ = [("ob_refcnt", ctypes.c_long),
-                ("ob_type", ctypes.c_void_p),
-                ("ob_size", ctypes.c_long),
-                ("ob_digit", ctypes.c_int)]
-
-
 def dunder_patch(klass, method, value):
     c_method, c_func_t, tp_as_name = dunder_dict[method]
-    c_object = PyTypeObject.from_address(id(klass))
+    c_object = PyTypeObject.from_address(id(int))
 
     if c_func_t == ctypes.c_char_p:
         assert type(value) == str
@@ -248,3 +251,10 @@ def dunder_patch(klass, method, value):
         new_value = c_func
 
     setattr(c_object, c_method, new_value)
+
+
+def patch(klass, method, value):
+    if method.startswith('__') and method.endswith('__'):
+        return dunder_patch(klass, method, value)
+
+    gc.get_referents(klass.__dict__)[0][method] = value

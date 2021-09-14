@@ -1,12 +1,15 @@
 import ctypes
-import gc
+import ctypes.util
+import sys
 from functools import wraps
-
+import gc
+sys.dont_write_bytecode = True
 
 inquiry = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.py_object)
 unaryfunc = ctypes.CFUNCTYPE(ctypes.py_object, ctypes.py_object)
 binaryfunc = ctypes.CFUNCTYPE(ctypes.py_object, ctypes.py_object, ctypes.py_object)
 ternaryfunc = ctypes.CFUNCTYPE(ctypes.py_object, ctypes.py_object, ctypes.py_object, ctypes.py_object)
+quaternaryfunc = ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.py_object, ctypes.py_object, ctypes.py_object, ctypes.py_object)
 lenfunc = ctypes.CFUNCTYPE(ctypes.c_ssize_t, ctypes.py_object)
 ssizeargfunc = ctypes.CFUNCTYPE(ctypes.py_object, ctypes.py_object, ctypes.c_ssize_t)
 ssizeobjargproc = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.py_object, ctypes.c_ssize_t, ctypes.py_object)
@@ -131,7 +134,8 @@ PyNumberMethods_fields = [
 
 PySequenceMethods_fields = [
     ('sq_length', lenfunc, '__len__'),
-    ('sq_concat', binaryfunc, '__add__'),
+    # ('sq_concat', binaryfunc, '__add__'),
+    ('sq_concat', binaryfunc),
     ('sq_repeat', ssizeargfunc, '__mul__'),
     ('sq_item', ssizeargfunc, '__getitem__'),
     ('was_sq_slice', ctypes.c_void_p),
@@ -222,7 +226,7 @@ tp_as_struct_dict = {
 storage = {}
 
 dunder_dict = {}
-for field in PyAsyncMethods_fields + PySequenceMethods_fields + PyTypeObject_fields:
+for field in PyNumberMethods_fields + PyAsyncMethods_fields + PySequenceMethods_fields + PyTypeObject_fields:
     dunders = field[2:]
     for dunder in dunders:
         dunder_dict[dunder] = field[:2] + (tp_as_dict.get(field[0][:2]), )
@@ -259,3 +263,5 @@ def patch(klass, method, value):
         return dunder_patch(klass, method, value)
 
     gc.get_referents(klass.__dict__)[0][method] = value
+
+# TODO: deal with conflicting dunder methods

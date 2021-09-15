@@ -124,7 +124,7 @@ PySequenceMethods_fields = [
     ('sq_length', lenfunc, '__len__'),
     ('sq_concat', binaryfunc, '__add__'),
     ('sq_repeat', ssizeargfunc, '__mul__'),
-    ('sq_item', ssizeargfunc, '__getitem__'),
+    ('sq_item', ssizeargfunc),
     ('was_sq_slice', ssizessizeargfunc),
     ('sq_ass_item', ssizeobjargproc, '__setitem__', '__delitem__'),
     ('was_sq_ass_slice', ssizessizeobjargproc),  # was_sq_ass_slice in python 3

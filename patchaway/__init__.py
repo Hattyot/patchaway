@@ -61,12 +61,13 @@ def get_tp_as_name(klass, method):
         return None
 
     if isinstance(klass, type):
+        # sequences use mapping getitem method for some reason
+        if issubclass(klass, collections.abc.Mapping) or method in ['__getitem__']:
+            return 'tp_as_mapping'
         if issubclass(klass, numbers.Number):
             return 'tp_as_number'
         if issubclass(klass, collections.abc.Sequence):
             return 'tp_as_sequence'
-        if issubclass(klass, collections.abc.Mapping):
-            return 'tp_as_mapping'
 
 
 def dunder_patch(klass, attribute, value):

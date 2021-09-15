@@ -2,9 +2,10 @@ import ctypes
 import numbers
 import sys
 import collections.abc
-from functools import wraps
 import gc
-from structures import (
+from functools import wraps
+from contextlib import contextmanager
+from .structures import (
     PyTypeObject_fields,
     PySequenceMethods_fields,
     PyAsyncMethods_fields,
@@ -15,6 +16,7 @@ from structures import (
 
 sys.dont_write_bytecode = True
 storage = {}
+reverse_storage = {}
 
 
 def get_tp_as_name(klass, method):
@@ -52,9 +54,9 @@ for field in PyNumberMethods_fields + PyAsyncMethods_fields + PySequenceMethods_
         dunder_dict[tp_as_name][dunder] = field[:2]
 
 
-def dunder_patch(klass, method, value):
-    tp_as_name = get_tp_as_name(klass, method)
-    c_method, c_func_t = dunder_dict[tp_as_name][method]
+def dunder_patch(klass, attribute, value):
+    tp_as_name = get_tp_as_name(klass, attribute)
+    c_method, c_func_t = dunder_dict[tp_as_name][attribute]
     c_object = PyTypeObject.from_address(id(klass))
 
     # string value for dunder property
@@ -76,14 +78,59 @@ def dunder_patch(klass, method, value):
 
         c_func = c_func_t(wrapper)
         # for some weird reason, without this, a segmentation fault happens
-        storage[(klass, method)] = c_func
+        storage[(klass, attribute)] = c_func
         new_value = c_func
 
+    reverse_storage[(klass, attribute)] = ctypes.cast(getattr(c_object, c_method), c_func_t)
     setattr(c_object, c_method, new_value)
 
 
-def patch(klass, method, value):
-    if method.startswith('__') and method.endswith('__'):
-        return dunder_patch(klass, method, value)
+def dunder_unpatch(klass, attribute):
+    tp_as_name = get_tp_as_name(klass, attribute)
+    c_method, c_func_t = dunder_dict[tp_as_name][attribute]
+    c_object = PyTypeObject.from_address(id(klass))
 
-    gc.get_referents(klass.__dict__)[0][method] = value
+    tp_as_pointer = getattr(c_object, tp_as_name)
+    if tp_as_pointer:
+        c_object = tp_as_pointer.contents
+
+    setattr(c_object, c_method, reverse_storage[(klass, attribute)])
+    del reverse_storage[(klass, attribute)]
+
+
+def patch(klass, attribute, value):
+    if attribute.startswith('__') and attribute.endswith('__'):
+        return dunder_patch(klass, attribute, value)
+
+    values = gc.get_referents(klass.__dict__)[0]
+    reverse_storage[(klass, attribute)] = values.get(attribute, None)
+    values[attribute] = value
+    # Invalidate the internal lookup cache for the type and all of its subtypes
+    ctypes.pythonapi.PyType_Modified(ctypes.py_object(klass))
+
+
+def unpatch(klass, attribute):
+    if (klass, attribute) not in reverse_storage:
+        raise ValueError(f'Method {attribute} for class {klass} was never patched.')
+
+    if attribute.startswith('__') and attribute.endswith('__'):
+        return dunder_unpatch(klass, attribute)
+
+    reverse = reverse_storage[(klass, attribute)]
+    values = gc.get_referents(klass.__dict__)[0]
+    if reverse is None:
+        del values[attribute],
+    else:
+        values[attribute] = reverse_storage[(klass, attribute)]
+
+    # Invalidate the internal lookup cache for the type and all of its subtypes
+    ctypes.pythonapi.PyType_Modified(ctypes.py_object(klass))
+
+
+@contextmanager
+def patcher(obj, attr, val):
+    patch(obj, attr, val)
+    try:
+        yield
+    finally:
+        unpatch(obj, attr)

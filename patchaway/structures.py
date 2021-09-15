@@ -156,7 +156,7 @@ PyTypeObject_fields = [
     ('tp_vectorcall_offset', ctypes.c_ssize_t),
     ('tp_getattr', ctypes.CFUNCTYPE(ctypes.py_object, ctypes.py_object, ctypes.py_object), '__getattr__', '__getattribute__'),
     ('tp_setattr', ctypes.CFUNCTYPE(ctypes.c_int, ctypes.py_object, ctypes.c_char_p, ctypes.py_object), '__setattr__'),
-    ('tp_as_async', ctypes.CFUNCTYPE(PyAsyncMethods)),
+    ('tp_as_async', ctypes.POINTER(PyAsyncMethods)),
     ('tp_repr', ctypes.CFUNCTYPE(ctypes.py_object, ctypes.py_object), '__repr__'),
     ('tp_as_number', ctypes.POINTER(PyNumberMethods)),
     ('tp_as_sequence', ctypes.POINTER(PySequenceMethods)),

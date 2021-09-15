@@ -16,4 +16,8 @@ print(str([1, 2, 3]))  # => "rekt"
 patch(int, 'hello', lambda: *a, **kw: "Hi!")
 number = 2
 print(number.hello())  # => "Hi!"
+
+unpatch(int, 'hello')
+print(number.hello())  # => AttributeError: 'int' object has no attribute 'hello'
+
 ```

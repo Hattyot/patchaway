@@ -1,4 +1,4 @@
-import copy
+import _ctypes
 import ctypes
 import numbers
 import sys
@@ -62,7 +62,7 @@ def get_tp_as_name(klass, method):
 
     if isinstance(klass, type):
         # sequences use mapping getitem method for some reason
-        if issubclass(klass, collections.abc.Mapping) or method in ['__getitem__']:
+        if issubclass(klass, collections.abc.Mapping) or method in ['__getitem__', '__setitem__', '__delitem__']:
             return 'tp_as_mapping'
         if issubclass(klass, numbers.Number):
             return 'tp_as_number'
@@ -87,6 +87,14 @@ def dunder_patch(klass, attribute, value):
         else:
             @wraps(copied_value)
             def wrapper(*args, **kwargs):
+                # mp_ass_subscript does some funky stuff
+                # with the __delitem__ method, it sets the last arg to null, but the last arg cant be null if it's
+                # a py_object, so it's set to void_p, which gives the id of the returned obj, with delitem, the id is 0
+                if c_method == 'mp_ass_subscript' and issubclass(klass, collections.abc.Sequence):
+                    index = _ctypes.PyObj_FromPtr(args[1])
+                    value = _ctypes.PyObj_FromPtr(args[2]) if args[2] else ctypes.c_void_p()
+                    args = [args[0], index, value]
+
                 return copied_value(*args, **kwargs)
 
             if tp_as_name:
@@ -98,7 +106,6 @@ def dunder_patch(klass, attribute, value):
             storage[(klass, attribute)] = c_func
             new_value = c_func
 
-        # raise Exception(c_object, c_method, new_value)
         reverse_storage[(klass, attribute, c_method)] = ctypes.cast(getattr(c_object, c_method), c_func_t)
         setattr(c_object, c_method, new_value)
 
@@ -118,11 +125,13 @@ def dunder_unpatch(klass, attribute):
 
 
 def patch(klass, attribute, value):
-    if attribute.startswith('__') and attribute.endswith('__'):
-        return dunder_patch(klass, attribute, value)
-
     values = gc.get_referents(klass.__dict__)[0]
-    reverse_storage[(klass, attribute)] = values.get(attribute, None)
+
+    if attribute.startswith('__') and attribute.endswith('__'):
+        dunder_patch(klass, attribute, value)
+    else:
+        reverse_storage[(klass, attribute)] = values.get(attribute, None)
+
     values[attribute] = value
     # Invalidate the internal lookup cache for the type and all of its subtypes
     ctypes.pythonapi.PyType_Modified(ctypes.py_object(klass))

@@ -21,7 +21,7 @@ ternaryfunc = ctypes.CFUNCTYPE(ctypes.py_object, ctypes.py_object, ctypes.py_obj
 quaternaryfunc = ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.py_object, ctypes.py_object, ctypes.py_object, ctypes.py_object)
 lenfunc = ctypes.CFUNCTYPE(ctypes.c_ssize_t, ctypes.py_object)
 ssizeargfunc = ctypes.CFUNCTYPE(ctypes.py_object, ctypes.py_object, ctypes.c_ssize_t)
-ssizeobjargproc = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.py_object, ctypes.c_ssize_t)
+ssizeobjargproc = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.py_object, ctypes.c_ssize_t, ctypes.py_object)
 objobjproc = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.py_object, ctypes.py_object)
 ssizessizeargfunc = ctypes.CFUNCTYPE(ctypes.py_object, ctypes.py_object, ctypes.c_ssize_t, ctypes.c_ssize_t)
 ssizessizeobjargproc = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.py_object, ctypes.c_ssize_t, ctypes.c_ssize_t, ctypes.py_object)
@@ -139,11 +139,10 @@ PyAsyncMethods_fields = [
     ('am_anext', unaryfunc, '__anext__')
 ]
 
-
 PyMappingMethods_fields = [
     ('mp_length', lenfunc, '__len__'),
     ('mp_subscript', binaryfunc, '__getitem__'),
-    ('mp_ass_subscript', ctypes.CFUNCTYPE(ctypes.c_int, ctypes.py_object, ctypes.py_object, ctypes.py_object), '__setitem__', '__delitem__')
+    ('mp_ass_subscript', ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.py_object, ctypes.c_ssize_t, ctypes.c_ssize_t), '__setitem__', '__delitem__')
 ]
 
 
